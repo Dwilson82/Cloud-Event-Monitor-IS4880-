@@ -1,3 +1,5 @@
+# This script is hardware dependant and requires the raspberry pi and the DS18B20 to produce output
+
 import glob
 import logging
 import os
@@ -186,3 +188,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
