@@ -1,3 +1,5 @@
+# This code requires the hardware (Raspberry Pi and DS18B20) in order to work in Live Mode, sim mode will work without)
+
 import glob
 import logging
 import os
@@ -255,3 +257,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
