@@ -27,17 +27,60 @@ except Exception:
 GCP_PROJECT_ID = "project-e3a6924b-8583-4f8a-b9d"
 PUBSUB_TOPIC_ID = "cloudevent-topic"
 DEVICE_ID_DEFAULT = f"{socket.gethostname()}-pi"
+CONFIG_FILE = "config.json"
+
+DEFAULT_CONFIG = {
+    "device_id_live": "rpi-1",
+    "device_id_sim": "rpi-sim",
+    "publish_interval": 10,
+    "temp_high_threshold": 30,
+    "temp_low_threshold": -10,
+    "sim_min_temp": -20,
+    "sim_max_temp": 35,
+    "alerts_enabled": True,
+}
 
 BASE_TEMP_C = 22.0
 MAX_VARIATION_C = 5.0
-SIM_MIN_INTERVAL_S = 0.8
-SIM_MAX_INTERVAL_S = 2.5
 LIVE_INTERVAL_S = 1.0
 SPOOL_FILE = "spool_unsent_events.jsonl"
 
 _device_path = None
 _rom = None
 _ds18_initialized = False
+
+
+def load_config(log):
+    config = DEFAULT_CONFIG.copy()
+
+    if not os.path.exists(CONFIG_FILE):
+        save_config(config, log)
+        return config
+
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as config_file:
+            loaded = json.load(config_file)
+
+        if isinstance(loaded, dict):
+            config.update(loaded)
+            if "alerts_enabled" not in loaded:
+                save_config(config, log)
+        else:
+            log.error("Invalid config format. Recreating with defaults")
+            save_config(config, log)
+    except Exception as exc:
+        log.error("Failed to read config file. Using defaults: %s", exc)
+        save_config(config, log)
+
+    return config
+
+
+def save_config(config, log):
+    try:
+        with open(CONFIG_FILE, "w", encoding="utf-8") as config_file:
+            json.dump(config, config_file, indent=2)
+    except Exception as exc:
+        log.error("Failed to write config file: %s", exc)
 
 
 def init_ds18b20(log):
@@ -90,8 +133,8 @@ def read_temp_live(log):
     return temp_c, temp_f
 
 
-def build_event_payload(device_id, mode, temp_c, temp_f, sequence):
-    return {
+def build_event_payload(device_id, mode, temp_c, temp_f, sequence, event_type="TEMP_READING", extra_fields=None):
+    payload = {
         "message_id": str(uuid.uuid4()),
         "device_id": device_id,
         "mode": mode,
@@ -99,8 +142,11 @@ def build_event_payload(device_id, mode, temp_c, temp_f, sequence):
         "temp_f": temp_f,
         "timestamp_utc": datetime.utcnow().isoformat() + "Z",
         "sequence": sequence,
-        "event_type": "TEMP_READING",
+        "event_type": event_type,
     }
+    if extra_fields:
+        payload.update(extra_fields)
+    return payload
 
 
 def spool_event(event_payload, log):
@@ -186,10 +232,16 @@ def publisher_worker(running_event, publish_queue, output_queue, log, is_publish
             publish_queue.task_done()
 
 
-def temp_worker(running_event, output_queue, publish_queue, log, is_sim_mode, is_publish_enabled):
+def temp_worker(running_event, output_queue, publish_queue, log, is_sim_mode, is_publish_enabled, get_config):
     current_temp_c = BASE_TEMP_C
     last_mode = None
     sequence = 0
+    in_alert_state = False
+    sim_trend = 1
+    excursion_cycles = 0
+    recovery_cycles = 0
+    excursion_direction = 1
+    excursion_target = None
 
     while running_event.is_set():
         sim_mode = is_sim_mode()
@@ -205,17 +257,63 @@ def temp_worker(running_event, output_queue, publish_queue, log, is_sim_mode, is
             last_mode = sim_mode
 
         try:
+            config = get_config()
+            sim_min_temp = float(config["sim_min_temp"])
+            sim_max_temp = float(config["sim_max_temp"])
+            threshold_low = float(config["temp_low_threshold"])
+            threshold_high = float(config["temp_high_threshold"])
+            alerts_enabled = bool(config.get("alerts_enabled", True))
+            publish_interval = max(0.1, float(config["publish_interval"]))
+
             if sim_mode:
-                delta = random.uniform(-MAX_VARIATION_C, MAX_VARIATION_C)
-                current_temp_c += delta
-                current_temp_c = max(10.0, min(40.0, current_temp_c))
+                normal_mid = (threshold_low + threshold_high) / 2.0
+
+                if excursion_cycles > 0 and excursion_target is not None:
+                    direction = 1 if excursion_target > current_temp_c else -1
+                    temp_step = direction * random.uniform(1.0, 1.8)
+                    excursion_cycles -= 1
+                    crossed_threshold = current_temp_c < threshold_low or current_temp_c > threshold_high
+                    reached_target = abs(excursion_target - current_temp_c) <= 0.8
+                    if crossed_threshold or reached_target or excursion_cycles == 0:
+                        recovery_cycles = random.randint(4, 8)
+                        excursion_target = None
+                        excursion_cycles = 0
+                elif recovery_cycles > 0:
+                    direction = 1 if normal_mid > current_temp_c else -1
+                    temp_step = direction * random.uniform(0.5, 0.9)
+                    recovery_cycles -= 1
+                else:
+                    if random.random() < 0.15:
+                        sim_trend *= -1
+                    temp_step = (sim_trend * random.uniform(0.1, 0.45)) + random.uniform(-0.2, 0.2)
+
+                    can_breach_high = threshold_high < sim_max_temp
+                    can_breach_low = threshold_low > sim_min_temp
+                    if alerts_enabled and not in_alert_state and random.random() < 0.12 and (can_breach_high or can_breach_low):
+                        options = [d for d in [1, -1] if (d == 1 and can_breach_high) or (d == -1 and can_breach_low)]
+                        excursion_direction = random.choice(options)
+                        if excursion_direction > 0:
+                            excursion_target = min(sim_max_temp - 0.2, threshold_high + random.uniform(1.0, 2.5))
+                        else:
+                            excursion_target = max(sim_min_temp + 0.2, threshold_low - random.uniform(1.0, 2.5))
+                        excursion_cycles = random.randint(10, 18)
+                        temp_step += excursion_direction * random.uniform(0.8, 1.2)
+
+                current_temp_c += temp_step
+
+                if current_temp_c > sim_max_temp:
+                    current_temp_c = sim_max_temp - (current_temp_c - sim_max_temp) * 0.4
+                    sim_trend = -1
+                elif current_temp_c < sim_min_temp:
+                    current_temp_c = sim_min_temp + (sim_min_temp - current_temp_c) * 0.4
+                    sim_trend = 1
+
                 temp_c = current_temp_c
                 temp_f = temp_c * (9.0 / 5.0) + 32.0
                 output_queue.put(("temp", temp_c, temp_f))
                 log.info("sim temp_c=%.3f temp_f=%.3f", temp_c, temp_f)
-                device_id = DEVICE_ID_DEFAULT
+                device_id = config["device_id_sim"]
                 mode = "sim"
-                sleep_interval = random.uniform(SIM_MIN_INTERVAL_S, SIM_MAX_INTERVAL_S)
             else:
                 if not init_ds18b20(log):
                     output_queue.put(("status", "Live mode: DS18B20 not available"))
@@ -224,15 +322,64 @@ def temp_worker(running_event, output_queue, publish_queue, log, is_sim_mode, is
 
                 temp_c, temp_f = read_temp_live(log)
                 output_queue.put(("temp", temp_c, temp_f))
-                device_id = _rom if _rom else DEVICE_ID_DEFAULT
+                device_id = config["device_id_live"]
                 mode = "live"
-                sleep_interval = LIVE_INTERVAL_S
 
             sequence += 1
             event_payload = build_event_payload(device_id, mode, temp_c, temp_f, sequence)
             publish_queue.put(event_payload)
 
-            time.sleep(sleep_interval)
+            if sim_mode and alerts_enabled:
+                is_out_of_threshold = temp_c < threshold_low or temp_c > threshold_high
+
+                if not in_alert_state and is_out_of_threshold:
+                    in_alert_state = True
+                    sequence += 1
+                    threshold_payload = build_event_payload(
+                        device_id,
+                        mode,
+                        temp_c,
+                        temp_f,
+                        sequence,
+                        event_type="TEMP_THRESHOLD_EXCEEDED",
+                        extra_fields={
+                            "temperature_c": temp_c,
+                            "temperature_f": temp_f,
+                            "temp_low_threshold": threshold_low,
+                            "temp_high_threshold": threshold_high,
+                            "alerts_enabled": alerts_enabled,
+                        },
+                    )
+                    publish_queue.put(threshold_payload)
+                    output_queue.put(
+                        (
+                            "status",
+                            f"{device_id} TEMP_THRESHOLD_EXCEEDED temp={temp_c:.1f}C low={threshold_low:g} high={threshold_high:g}",
+                        )
+                    )
+
+                elif in_alert_state and not is_out_of_threshold:
+                    in_alert_state = False
+                    sequence += 1
+                    recover_payload = build_event_payload(
+                        device_id,
+                        mode,
+                        temp_c,
+                        temp_f,
+                        sequence,
+                        event_type="TEMP_THRESHOLD_RECOVERED",
+                        extra_fields={
+                            "temperature_c": temp_c,
+                            "temperature_f": temp_f,
+                            "temp_low_threshold": threshold_low,
+                            "temp_high_threshold": threshold_high,
+                            "alerts_enabled": alerts_enabled,
+                        },
+                    )
+                    publish_queue.put(recover_payload)
+                    output_queue.put(("status", f"{device_id} TEMP_THRESHOLD_RECOVERED temp={temp_c:.1f}C"))
+
+            time.sleep(publish_interval)
 
         except Exception as exc:
             output_queue.put(("status", "Temp read error"))
@@ -242,6 +389,7 @@ def temp_worker(running_event, output_queue, publish_queue, log, is_sim_mode, is
 
 def main():
     log = build_logger()
+    config = load_config(log)
     output_queue = queue.Queue()
     publish_queue = queue.Queue()
 
@@ -255,6 +403,8 @@ def main():
 
     publish_lock = threading.Lock()
     publish_enabled = False
+
+    config_lock = threading.Lock()
 
     last_temp = None
     last_status = None
@@ -300,10 +450,8 @@ def main():
     mode_label.grid(row=0, column=0, padx=(0, 6), sticky="w")
 
     mode_var = tk.StringVar(value="sim")
-    live_radio = ttk.Radiobutton(controls_frame, text="Live", variable=mode_var, value="live")
-    live_radio.grid(row=0, column=1, padx=(0, 6))
-    sim_radio = ttk.Radiobutton(controls_frame, text="Simulated", variable=mode_var, value="sim")
-    sim_radio.grid(row=0, column=2, padx=(0, 12))
+    ttk.Radiobutton(controls_frame, text="Live", variable=mode_var, value="live").grid(row=0, column=1, padx=(0, 6))
+    ttk.Radiobutton(controls_frame, text="Simulated", variable=mode_var, value="sim").grid(row=0, column=2, padx=(0, 12))
 
     publish_button = ttk.Button(controls_frame, text="Enable Publishing")
     publish_button.grid(row=0, column=3, padx=(0, 8))
@@ -337,6 +485,20 @@ def main():
     button_frame = ttk.Frame(container)
     button_frame.grid(row=6, column=0, sticky="e", pady=(12, 0))
 
+    menubar = tk.Menu(root)
+    file_menu = tk.Menu(menubar, tearoff=0)
+    file_menu.add_command(label="Exit", command=root.quit)
+    menubar.add_cascade(label="File", menu=file_menu)
+
+    settings_menu = tk.Menu(menubar, tearoff=0)
+    menubar.add_cascade(label="Settings", menu=settings_menu)
+
+    help_menu = tk.Menu(menubar, tearoff=0)
+    help_menu.add_command(label="About", command=lambda: output_queue.put(("status", "Event Monitor Telemetry Publisher")))
+    menubar.add_cascade(label="Help", menu=help_menu)
+
+    root.config(menu=menubar)
+
     def append_log(message):
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         log_text.configure(state="normal")
@@ -351,6 +513,121 @@ def main():
     def is_publish_enabled():
         with publish_lock:
             return publish_enabled
+
+    def get_config():
+        with config_lock:
+            return dict(config)
+
+    def set_config(new_config):
+        with config_lock:
+            config.update(new_config)
+
+    def open_config_window():
+        config_snapshot = get_config()
+        config_window = tk.Toplevel(root)
+        config_window.title("Publisher Configuration")
+        config_window.geometry("460x560")
+        config_window.transient(root)
+        config_window.grab_set()
+
+        body = tk.Frame(config_window, padx=12, pady=12)
+        body.pack(fill="both", expand=True)
+
+        def build_section(title, row_start, fields):
+            tk.Label(body, text=title, font=("Segoe UI", 10, "bold")).grid(
+                row=row_start, column=0, columnspan=2, sticky="w", pady=(8, 4)
+            )
+            entries = {}
+            row = row_start + 1
+            for key, label_text in fields:
+                tk.Label(body, text=label_text).grid(row=row, column=0, sticky="w", pady=2)
+                entry = tk.Entry(body, width=28)
+                entry.insert(0, str(config_snapshot[key]))
+                entry.grid(row=row, column=1, sticky="ew", padx=(10, 0), pady=2)
+                entries[key] = entry
+                row += 1
+            return entries, row
+
+        body.columnconfigure(1, weight=1)
+
+        all_entries = {}
+        entries, next_row = build_section(
+            "Device Settings",
+            0,
+            [
+                ("device_id_live", "Live Device ID"),
+                ("device_id_sim", "Simulated Device ID"),
+            ],
+        )
+        all_entries.update(entries)
+
+        entries, next_row = build_section(
+            "Publishing",
+            next_row,
+            [("publish_interval", "Publish Interval (seconds)")],
+        )
+        all_entries.update(entries)
+
+        entries, next_row = build_section(
+            "Thresholds",
+            next_row,
+            [
+                ("temp_high_threshold", "High Temperature Threshold (°C)"),
+                ("temp_low_threshold", "Low Temperature Threshold (°C)"),
+            ],
+        )
+        all_entries.update(entries)
+
+        entries, next_row = build_section(
+            "Simulation",
+            next_row,
+            [
+                ("sim_min_temp", "Simulation Minimum Temperature (°C)"),
+                ("sim_max_temp", "Simulation Maximum Temperature (°C)"),
+            ],
+        )
+        all_entries.update(entries)
+
+        tk.Label(body, text="Alerts", font=("Segoe UI", 10, "bold")).grid(
+            row=next_row, column=0, columnspan=2, sticky="w", pady=(8, 4)
+        )
+        alerts_enabled_var = tk.BooleanVar(value=bool(config_snapshot.get("alerts_enabled", True)))
+        tk.Checkbutton(body, text="Enable Temperature Alerts", variable=alerts_enabled_var).grid(
+            row=next_row + 1, column=0, columnspan=2, sticky="w", pady=2
+        )
+
+        button_row = tk.Frame(body)
+        button_row.grid(row=next_row + 2, column=0, columnspan=2, sticky="e", pady=(16, 0))
+
+        def save_and_close():
+            try:
+                updated_config = {
+                    "device_id_live": all_entries["device_id_live"].get().strip() or DEFAULT_CONFIG["device_id_live"],
+                    "device_id_sim": all_entries["device_id_sim"].get().strip() or DEFAULT_CONFIG["device_id_sim"],
+                    "publish_interval": float(all_entries["publish_interval"].get()),
+                    "temp_high_threshold": float(all_entries["temp_high_threshold"].get()),
+                    "temp_low_threshold": float(all_entries["temp_low_threshold"].get()),
+                    "sim_min_temp": float(all_entries["sim_min_temp"].get()),
+                    "sim_max_temp": float(all_entries["sim_max_temp"].get()),
+                    "alerts_enabled": bool(alerts_enabled_var.get()),
+                }
+            except ValueError:
+                output_queue.put(("status", "Invalid configuration values"))
+                return
+
+            if updated_config["sim_min_temp"] > updated_config["sim_max_temp"]:
+                output_queue.put(("status", "Simulation min temp cannot exceed max temp"))
+                return
+
+            set_config(updated_config)
+            save_config(get_config(), log)
+            output_queue.put(("status", "Publisher configuration updated"))
+            config_window.destroy()
+
+        tk.Button(button_row, text="Save", command=save_and_close, width=10).pack(side="right", padx=(8, 0))
+        tk.Button(button_row, text="Cancel", command=config_window.destroy, width=10).pack(side="right")
+
+    settings_menu.add_command(label="Configure Publisher", command=open_config_window)
 
     def update_mode_selection():
         nonlocal sim_mode_enabled
@@ -415,7 +692,7 @@ def main():
         temp_running.set()
         temp_thread = threading.Thread(
             target=temp_worker,
-            args=(temp_running, output_queue, publish_queue, log, is_sim_mode, is_publish_enabled),
+            args=(temp_running, output_queue, publish_queue, log, is_sim_mode, is_publish_enabled, get_config),
             daemon=True,
         )
         temp_thread.start()
