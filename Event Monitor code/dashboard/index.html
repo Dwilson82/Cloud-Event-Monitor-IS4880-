@@ -280,7 +280,10 @@
             const res = await fetch('/api/chart-data');
             const data = await res.json();
 
-            const ctx = document.getElementById('tempChart').getContext('2d');
+            const canvas = document.getElementById('tempChart');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
 
             if (tempChart) {
                 tempChart.destroy();
@@ -378,8 +381,10 @@
             ]);
         }
 
-        refreshAll();
-        setInterval(refreshAll, 4000);
+        document.addEventListener("DOMContentLoaded", () => {
+            refreshAll();
+            setInterval(refreshAll, 4000);
+        });
     </script>
 </body>
 </html>
