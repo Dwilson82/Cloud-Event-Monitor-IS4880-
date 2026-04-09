@@ -302,6 +302,11 @@
                     <h3>Out-of-Range %</h3>
                     <div class="big" id="outOfRangePct">0%</div>
                 </div>
+
+                <div class"card full">
+                    <h3>Alerts Overview</h3>
+                    <canvas id="alertsChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -364,6 +369,7 @@
                 document.getElementById("criticalCount").innerText = data.critical_count;
                 document.getElementById("maxTemp").innerText = data.max_temp_f + " °F";
                 document.getElementById("outOfRangePct").innerText = data.out_of_range_pct + "%";
+                loadAlertsChart(data);
             } catch (err) {
                 console.error("loadMetrics failed:", err);
             }
@@ -566,6 +572,34 @@
                 await loadStatus();
             }, 4000);
         });
+
+        let alertsChart = null;
+
+        function loadAlertsChart(data) {
+            const canvas = document.getElementById('alertsChart');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+
+            if (alertsChart) alertsChart.destroy();
+
+            alertsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Normal', 'Warning', 'Critical'],
+                    datasets: [{
+                        label: 'Events',
+                        data: [
+                            data.total - data.warning_count - data.critical_count,
+                            data.warning_count,
+                            data.critical_count
+                        ],
+                        backgroundColor: ['#22c55e', '#f59e0b', '#ef4444']
+                    }]
+                }
+            });
+        }
+
     </script>
 </body>
 </html>
