@@ -45,7 +45,6 @@ def get_events():
                     message_id AS id,
                     device_id,
                     temp_c AS temp,
-                    temp_f,
                     DATE_FORMAT(timestamp_utc, '%H:%i:%s') AS time,
                     is_duplicate AS duplicate
                 FROM messages
