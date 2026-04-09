@@ -194,46 +194,428 @@
 </head>
 <body>
 
-<!-- SNIPPED FOR BREVITY — NO STRUCTURAL CHANGES ABOVE -->
+    <div class="sidebar">
+        <button class="nav-btn active" onclick="showSection('dashboard', this)">🏠</button>
+        <button class="nav-btn" onclick="showSection('logs', this)">📄</button>
+        <button class="nav-btn" onclick="showSection('analytics', this)">📊</button>
+        <button class="nav-btn" onclick="showSection('settings', this)">⚙️</button>
+    </div>
 
-<script>
-    async function loadMetrics() {
-        const res = await fetch('/api/metrics');
-        const data = await res.json();
-        document.getElementById("avg").innerText = data.avg_temp_f + " °C";
-    }
+    <div class="main">
+        <h1>🖥 Data Center Dashboard</h1>
+        <p class="muted">Real-Time Pub/Sub Monitoring</p>
 
-    async function loadStatus() {
-        const res = await fetch('/api/status');
-        const data = await res.json();
-        document.getElementById("latestReading").innerText =
-            `${data.device_id} • ${data.latest_temp_f ?? '--'} °C @ ${data.time}`;
-    }
+        <div id="dashboard" class="section active">
+            <div class="grid">
+                <div class="card">
+                    <h3>Total Events</h3>
+                    <div class="big" id="total">0</div>
+                </div>
 
-    async function loadSettings() {
-        const res = await fetch('/api/settings');
-        const data = await res.json();
+                <div class="card">
+                    <h3>Duplicates</h3>
+                    <div class="big" id="dups">0</div>
+                </div>
 
-        document.getElementById("currentRules").innerText =
-            `Warning: ${data.warning_temp_f} °C | Critical: ${data.critical_temp_f} °C | Alerts: ${data.alert_enabled ? 'On' : 'Off'}`;
-    }
+                <div class="card">
+                    <h3>Average Temp</h3>
+                    <div class="big" id="avg">--</div>
+                </div>
 
-    async function loadChart() {
-        tempChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                datasets: [{
-                    label: 'Temp °C',
-                }]
+                <div class="card large">
+                    <h3>System Activity</h3>
+                    <canvas id="tempChart"></canvas>
+                </div>
+
+                <div class="card">
+                    <h3>Status</h3>
+                    <div class="status-text" id="systemStatus">Loading...</div>
+                    <p id="statusMessage" class="muted">Checking telemetry...</p>
+                    <div class="mini-stat" id="latestReading">Waiting for data...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="logs" class="section">
+            <div class="card full">
+                <h3>Event Log</h3>
+
+                <select id="filter" onchange="applyFilter()">
+                    <option value="all">All Events</option>
+                    <option value="dup">Duplicates Only</option>
+                    <option value="ok">Unique Only</option>
+                </select>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Device</th>
+                            <th>Temp</th>
+                            <th>Time</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="analytics" class="section">
+            <div class="analytics-grid">
+                <div class="card">
+                    <h3>Duplicate Rate</h3>
+                    <div class="big" id="dupRate">0%</div>
+                </div>
+
+                <div class="card">
+                    <h3>Latest Device</h3>
+                    <div class="big" id="latestDevice">--</div>
+                </div>
+
+                <div class="card">
+                    <h3>Latest Temperature</h3>
+                    <div class="big" id="latestTemp">--</div>
+                </div>
+
+                <div class="card">
+                    <h3>Last Update Time</h3>
+                    <div class="big" id="lastTime">--</div>
+                </div>
+
+                <div class="card">
+                    <h3>Warning Events</h3>
+                    <div class="big" id="warningCount">0</div>
+                </div>
+
+                <div class="card">
+                    <h3>Critical Events</h3>
+                    <div class="big" id="criticalCount">0</div>
+                </div>
+
+                <div class="card">
+                    <h3>Max Temperature</h3>
+                    <div class="big" id="maxTemp">--</div>
+                </div>
+
+                <div class="card">
+                    <h3>Out-of-Range %</h3>
+                    <div class="big" id="outOfRangePct">0%</div>
+                </div>
+
+                <div class="card full">
+                    <h3>Alerts Overview</h3>
+                    <canvas id="alertsChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div id="settings" class="section">
+            <div class="settings-grid">
+                <div class="card">
+                    <h3>Threshold Settings</h3>
+
+                    <label for="warningTemp">Warning Temp (°C)</label><br>
+                    <input id="warningTemp" type="number" step="0.1"><br>
+
+                    <label for="criticalTemp">Critical Temp (°C)</label><br>
+                    <input id="criticalTemp" type="number" step="0.1"><br>
+
+                    <div class="checkbox-row">
+                        <input id="alertsEnabled" type="checkbox">
+                        <label for="alertsEnabled">Enable Alerts</label>
+                    </div>
+
+                    <div class="settings-actions">
+                        <button class="save-btn" onclick="saveSettings()">Save Settings</button>
+                    </div>
+
+                    <p id="settingsMessage" class="muted"></p>
+                </div>
+
+                <div class="card">
+                    <h3>Current Rules</h3>
+                    <p id="currentRules">Loading settings...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allEvents = [];
+        let tempChart = null;
+
+        function showSection(sectionId, btn) {
+            document.querySelectorAll(".section").forEach(s => s.classList.remove("active"));
+            document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+
+            document.getElementById(sectionId).classList.add("active");
+            btn.classList.add("active");
+        }
+
+        async function loadMetrics() {
+            try {
+                const res = await fetch('/api/metrics');
+                const data = await res.json();
+                if (data.error) return;
+
+                document.getElementById("total").innerText = data.total;
+                document.getElementById("dups").innerText = data.dups;
+                document.getElementById("avg").innerText = data.avg_temp_f + " °C";
+
+                const dupRate = data.total > 0 ? ((data.dups / data.total) * 100).toFixed(1) : 0;
+                document.getElementById("dupRate").innerText = dupRate + "%";
+                document.getElementById("warningCount").innerText = data.warning_count;
+                document.getElementById("criticalCount").innerText = data.critical_count;
+                document.getElementById("maxTemp").innerText = data.max_temp_f + " °C";
+                document.getElementById("outOfRangePct").innerText = data.out_of_range_pct + "%";
+                loadAlertsChart(data);
+            } catch (err) {
+                console.error("loadMetrics failed:", err);
             }
+        }
+
+        async function loadStatus() {
+            try {
+                const res = await fetch('/api/status');
+                const data = await res.json();
+                if (data.error) return;
+
+                const statusEl = document.getElementById("systemStatus");
+                statusEl.innerText = data.status;
+                statusEl.style.color = data.color;
+
+                document.getElementById("statusMessage").innerText = data.message;
+                document.getElementById("latestReading").innerText =
+                    `${data.device_id} • ${data.latest_temp_f ?? '--'} °C @ ${data.time}`;
+            } catch (err) {
+                console.error("loadStatus failed:", err);
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                const res = await fetch('/api/settings');
+                const data = await res.json();
+                if (data.error) return;
+
+                document.getElementById("warningTemp").value = data.warning_temp_f;
+                document.getElementById("criticalTemp").value = data.critical_temp_f;
+                document.getElementById("alertsEnabled").checked = !!data.alert_enabled;
+
+                document.getElementById("currentRules").innerText =
+                    `Warning: ${data.warning_temp_f} °C | Critical: ${data.critical_temp_f} °C | Alerts: ${data.alert_enabled ? 'On' : 'Off'}`;
+            } catch (err) {
+                console.error("loadSettings failed:", err);
+            }
+        }
+
+        async function saveSettings() {
+            const payload = {
+                warning_temp_f: parseFloat(document.getElementById("warningTemp").value),
+                critical_temp_f: parseFloat(document.getElementById("criticalTemp").value),
+                alert_enabled: document.getElementById("alertsEnabled").checked
+            };
+
+            try {
+                const res = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+
+                if (data.error) {
+                    document.getElementById("settingsMessage").innerText = data.error;
+                    return;
+                }
+
+                document.getElementById("settingsMessage").innerText = "Settings saved successfully.";
+                await loadSettings();
+                await loadStatus();
+                await loadMetrics();
+            } catch (err) {
+                console.error("saveSettings failed:", err);
+                document.getElementById("settingsMessage").innerText = "Failed to save settings.";
+            }
+        }
+
+        async function loadChart() {
+            try {
+                if (typeof Chart === "undefined") {
+                    console.error("Chart.js failed to load.");
+                    return;
+                }
+
+                const res = await fetch('/api/chart-data');
+                const data = await res.json();
+                if (data.error) return;
+
+                const canvas = document.getElementById('tempChart');
+                if (!canvas) return;
+
+                const ctx = canvas.getContext('2d');
+
+                if (tempChart) {
+                    tempChart.destroy();
+                }
+
+                tempChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.labels || [],
+                        datasets: [{
+                            label: 'Temp °C',
+                            data: data.temps || [],
+                            borderColor: 'rgba(59,130,246,1)',
+                            backgroundColor: 'rgba(59,130,246,0.2)',
+                            tension: 0.3,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                labels: { color: 'white' }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255,255,255,0.08)' }
+                            },
+                            y: {
+                                ticks: { color: 'white' },
+                                grid: { color: 'rgba(255,255,255,0.08)' }
+                            }
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error("loadChart failed:", err);
+            }
+        }
+
+        async function loadData() {
+            try {
+                const res = await fetch('/api/events');
+                const data = await res.json();
+                if (data.error) return;
+
+                allEvents = data;
+                render(allEvents);
+                updateAnalytics();
+            } catch (err) {
+                console.error("loadData failed:", err);
+            }
+        }
+
+        function render(data) {
+            let html = "";
+
+            data.forEach(e => {
+                html += `
+                <tr class="${e.duplicate ? 'duplicate' : ''}">
+                    <td>${e.id}</td>
+                    <td>${e.device_id || '--'}</td>
+                    <td>${e.temp} °C</td>
+                    <td>${e.time}</td>
+                    <td>
+                        <span class="badge ${
+                            e.duplicate 
+                                ? 'dup' 
+                                : e.temp > 35 
+                                    ? 'dup' 
+                                    : e.temp > 32 
+                                        ? 'warn' 
+                                        : 'ok'
+                        }">
+                            ${
+                                e.duplicate 
+                                    ? 'Duplicate' 
+                                    : e.temp > 35 
+                                        ? 'Critical' 
+                                        : e.temp > 32 
+                                            ? 'Warning' 
+                                            : 'OK'
+                            }
+                        </span>
+                    </td>
+                </tr>`;
+            });
+
+            document.getElementById("tableBody").innerHTML = html;
+        }
+
+        function updateAnalytics() {
+            if (!allEvents.length) return;
+
+            const latest = allEvents[0];
+            document.getElementById("latestDevice").innerText = latest.device_id || "--";
+            document.getElementById("latestTemp").innerText = (latest.temp_f ?? '--') + " °C";
+            document.getElementById("lastTime").innerText = latest.time;
+        }
+
+        function applyFilter() {
+            let val = document.getElementById("filter").value;
+
+            if (val === "dup") {
+                render(allEvents.filter(e => e.duplicate));
+            } else if (val === "ok") {
+                render(allEvents.filter(e => !e.duplicate));
+            } else {
+                render(allEvents);
+            }
+        }
+
+        async function refreshAll() {
+            await loadMetrics();
+            await loadData();
+            await loadChart();
+            await loadStatus();
+            await loadSettings();
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            refreshAll();
+            setInterval(async () => {
+                await loadMetrics();
+                await loadData();
+                await loadChart();
+                await loadStatus();
+            }, 4000);
         });
-    }
 
-    function updateAnalytics() {
-        document.getElementById("latestTemp").innerText =
-            (latest.temp_f ?? '--') + " °C";
-    }
-</script>
+        let alertsChart = null;
 
+        function loadAlertsChart(data) {
+            const canvas = document.getElementById('alertsChart');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+
+            if (alertsChart) alertsChart.destroy();
+
+            alertsChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Normal', 'Warning', 'Critical'],
+                    datasets: [{
+                        label: 'Events',
+                        data: [
+                            data.total - data.warning_count - data.critical_count,
+                            data.warning_count,
+                            data.critical_count
+                        ],
+                        backgroundColor: ['#22c55e', '#f59e0b', '#ef4444']
+                    }]
+                }
+            });
+        }
+
+    </script>
 </body>
 </html>
