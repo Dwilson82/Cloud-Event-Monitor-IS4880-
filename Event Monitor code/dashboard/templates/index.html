@@ -524,15 +524,24 @@
                     <td>${e.temp} °C</td>
                     <td>${e.time}</td>
                     <td>
-                        <span class="badge ${e.duplicate ? 'dup' : 'ok'}">
-                            ${e.duplicate 
-                                ? 'Duplicate' 
+                        <span class="badge ${
+                            e.duplicate 
+                                ? 'dup' 
                                 : e.temp > 35 
-                                    ? 'Critical' 
+                                    ? 'dup' 
                                     : e.temp > 32 
-                                        ? 'Warning' 
-                                        : 'OK'}${e.duplicate 
-                              
+                                        ? 'warn' 
+                                        : 'ok'
+                        }">
+                            ${
+                                e.duplicate 
+                                    ? 'Duplicate' 
+                                    : e.temp > 35 
+                                        ? 'Critical' 
+                                        : e.temp > 32 
+                                            ? 'Warning' 
+                                            : 'OK'
+                            }
                         </span>
                     </td>
                 </tr>`;
