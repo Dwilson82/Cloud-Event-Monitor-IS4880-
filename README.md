@@ -62,12 +62,19 @@ Each event contains:
 
 {
   "message_id": "sim-TEMP-AA05",
+  
   "device_id": "rpi-sim",
+  
   "mode": "sim",
+  
   "temp_c": 36.5,
+  
   "temp_f": 97.7,
+  
   "timestamp_utc": "2026-03-26T16:12:35Z",
+  
   "sequence": 5,
+  
   "event_type": "TEMP_READING"
 }
 
