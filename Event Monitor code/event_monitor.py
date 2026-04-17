@@ -23,8 +23,8 @@ except Exception:
 # - Simulated mode (radio): random +/- 5C changes
 # - Publish mode (toggle button): publish to Pub/Sub
 
-GCP_PROJECT_ID = "project-e3a6924b-8583-4f8a-b9d"
-PUBSUB_TOPIC_ID = "cloudevent-topic"
+GCP_PROJECT_ID = "cloud-event-monitor-v2"
+PUBSUB_TOPIC_ID = "telemetry-topic"
 DEVICE_ID_DEFAULT = f"{socket.gethostname()}-pi"
 CONFIG_FILE = "config.json"
 
