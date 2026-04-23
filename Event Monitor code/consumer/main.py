@@ -27,6 +27,7 @@ def process_cloud_event(cloud_event):
         data_b64 = message.get("data")
 
         decoded_json = {}
+
         if data_b64:
             decoded = base64.b64decode(data_b64).decode("utf-8")
             print("Decoded message:", decoded)
@@ -37,7 +38,6 @@ def process_cloud_event(cloud_event):
                 print("Decoded payload is not valid JSON")
                 decoded_json = {}
 
-        # Prefer payload JSON, then fall back to Pub/Sub attributes
         message_id = decoded_json.get("message_id") or attributes.get("message_id")
         device_id = decoded_json.get("device_id") or attributes.get("device_id")
         temp_c = decoded_json.get("temp_c")
@@ -81,7 +81,7 @@ def process_cloud_event(cloud_event):
             result = cursor.fetchone()
             is_duplicate = 1 if result["cnt"] > 0 else 0
 
-            cursor.execute("""
+            insert_sql = """
                 INSERT INTO messages (
                     message_id,
                     device_id,
@@ -91,14 +91,19 @@ def process_cloud_event(cloud_event):
                     is_duplicate
                 )
                 VALUES (%s, %s, %s, %s, %s, %s)
-            """, (
-                message_id,
-                device_id,
-                temp_c,
-                temp_f,
-                timestamp_utc,
-                is_duplicate
-            ))
+            """
+
+            cursor.execute(
+                insert_sql,
+                (
+                    message_id,
+                    device_id,
+                    temp_c,
+                    temp_f,
+                    timestamp_utc,
+                    is_duplicate
+                )
+            )
 
         connection.commit()
         print(f"Insert successful: message_id={message_id}, duplicate={is_duplicate}")
