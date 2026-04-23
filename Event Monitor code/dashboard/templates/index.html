@@ -4,7 +4,7 @@
     <title>Data Center Dashboard</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         body {
             margin: 0;
@@ -29,22 +29,37 @@
         }
 
         .nav-btn {
-            margin: 14px 0;
-            font-size: 22px;
-            width: 52px;
-            height: 52px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+
+            margin: 12px 0;
+            width: 72px;
+            height: 72px;
+
             border-radius: 14px;
             border: none;
             cursor: pointer;
-            color: white;
-            background: rgba(30,41,59,0.5);
-            transition: 0.25s;
+
+            color: #cbd5f5;
+            background: rgba(30,41,59,0.4);
+
+            font-size: 11px;
+            transition: all 0.25s ease;
+        }
+
+        .nav-btn i {
+            width: 22px;
+            height: 22px;
         }
 
         .nav-btn:hover,
         .nav-btn.active {
-            background: rgba(59,130,246,0.35);
-            box-shadow: 0 0 16px rgba(59,130,246,0.5);
+            background: rgba(59,130,246,0.25);
+            color: white;
+            box-shadow: 0 0 16px rgba(59,130,246,0.4);
         }
 
         .main {
@@ -195,10 +210,25 @@
 <body>
 
     <div class="sidebar">
-        <button class="nav-btn active" onclick="showSection('dashboard', this)">🏠</button>
-        <button class="nav-btn" onclick="showSection('logs', this)">📄</button>
-        <button class="nav-btn" onclick="showSection('analytics', this)">📊</button>
-        <button class="nav-btn" onclick="showSection('settings', this)">⚙️</button>
+        <button class="nav-btn active" onclick="showSection('dashboard', this)">
+            <i data-lucide="home"></i>
+            <span>Dashboard</span>
+        </button>
+
+        <button class="nav-btn" onclick="showSection('logs', this)">
+            <i data-lucide="file-text"></i>
+            <span>Logs</span>
+        </button>
+
+        <button class="nav-btn" onclick="showSection('analytics', this)">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Analytics</span>
+        </button>
+
+        <button class="nav-btn" onclick="showSection('settings', this)">
+            <i data-lucide="settings"></i>
+            <span>Settings</span>
+        </button>
     </div>
 
     <div class="main">
@@ -627,6 +657,7 @@
 
         document.addEventListener("DOMContentLoaded", () => {
             refreshAll();
+            lucide.createIcons();
             setInterval(async () => {
                 await loadMetrics();
                 await loadData();
