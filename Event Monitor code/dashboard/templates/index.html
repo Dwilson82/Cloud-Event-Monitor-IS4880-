@@ -242,7 +242,7 @@
             <span>Settings</span>
         </button>
     </div>
-
+    
     <div class="main">
         <h1> Data Center Dashboard</h1>
         <p class="muted">Real-Time Pub/Sub Monitoring</p>
@@ -277,7 +277,7 @@
                 </div>
             </div>
         </div>
-
+        
         <div id="logs" class="section">
             <div class="card full">
                 <h3>Event Log</h3>
@@ -310,7 +310,7 @@
                     <div class="big" id="dupRate">0%</div>
                 </div>
 
-                <div class="card">
+                <div class="card" onclick="goToLogs()">
                     <h3>Latest Device</h3>
                     <div class="big" id="latestDevice">--</div>
                 </div>
@@ -395,6 +395,10 @@
 
             document.getElementById(sectionId).classList.add("active");
             btn.classList.add("active");
+        }
+        function goToLogs() {
+            const btn = document.querySelectorAll(".nav-btn")[1]; // logs button
+            showSection('logs', btn);
         }
 
         async function loadMetrics() {
