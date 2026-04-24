@@ -440,7 +440,12 @@
         </div>
     
         <div class="card">
-            <h3>Duplication Overview</h3>
+            <div class="card">
+                <h3>Duplicate Rate</h3>
+            
+                <div class="big" id="dupRate">--</div>
+                <div class="muted" id="dupLabel">System reliability</div>
+            </div>
     
             <div style="display:flex; justify-content:space-between;">
                 <div id="uniquePct" style="color:#22c55e;">--</div>
@@ -543,6 +548,12 @@
                 document.getElementById("avg").innerText = (data.avg_temp ?? 0) + " °C";
 
                 const dupRate = data.total > 0 ? ((data.dups / data.total) * 100).toFixed(1) : 0;
+                let label = "Healthy";
+
+                if (dupRate > 20) label = "Unstable";
+                else if (dupRate > 10) label = "Moderate";
+                
+                document.getElementById("dupLabel").innerText = label;
                 document.getElementById("dupRate").innerText = dupRate + "%";
                 document.getElementById("warningCount").innerText = data.warning_count ?? 0;
                 document.getElementById("criticalCount").innerText = data.critical_count ?? 0;
@@ -815,10 +826,12 @@
             if (alertsChart) alertsChart.destroy();
         
            
-            const temps = allEvents.map(e => e.temp).filter(Boolean);
+            const temps = allEvents
+                .map(e => Number(e.temp))
+                .filter(t => !isNaN(t));
         
             const normal = temps.filter(t => t < 27).length;
-            const warning = temps.filter(t => t >= 27 && t < 35).length;
+            const warning = temps.filter(t => t >= 32 && t < 35).length;;
             const critical = temps.filter(t => t >= 35).length;
         
             const values = [normal, warning, critical];
@@ -835,12 +848,12 @@
                     }]
                 },
                 options: {
-                    cutout: '65%',
+                    cutout: '70%',
                     plugins: {
                         legend: {
                             position: 'right',
                             labels: {
-                                color: 'white',
+                                fontcolor: 'white',
                                 generateLabels(chart) {
                                     return chart.data.labels.map((label, i) => {
                                         const percent = total ? ((values[i] / total) * 100).toFixed(1) : 0;
@@ -872,11 +885,11 @@
         
                         ctx.font = "14px Arial";
                         ctx.fillStyle = "#94a3b8";
-                        ctx.fillText("Total", centerX, centerY - 10);
-        
-                        ctx.font = "bold 22px Arial";
+                        ctx.fillText("Events", centerX, centerY - 8);
+
+                        ctx.font = "bold 24px Arial";
                         ctx.fillStyle = "white";
-                        ctx.fillText(total, centerX, centerY + 12);
+                        ctx.fillText(total, centerX, centerY + 10);
         
                         ctx.restore();
                     }
