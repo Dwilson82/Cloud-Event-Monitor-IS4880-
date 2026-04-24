@@ -545,64 +545,77 @@
             }
         }
 
+
+        let dashboardChart = null;
+        let analyticsChart = null;
+        
         async function loadChart() {
             try {
-                if (typeof Chart === "undefined") {
-                    console.error("Chart.js failed to load.");
-                    return;
-                }
-
                 const res = await fetch('/api/chart-data');
                 const data = await res.json();
                 if (data.error) return;
-
-                const canvas = document.getElementById('tempChart') || document.getElementById('analyticsTempChart');
-                if (!canvas) return;
-
-                const ctx = canvas.getContext('2d');
-
-                if (tempChart) {
-                    tempChart.destroy();
-                }
-
-                tempChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.labels || [],
-                        datasets: [{
-                            label: 'Temp °C',
-                            data: data.temps || [],
-                            borderColor: 'rgba(59,130,246,1)',
-                            backgroundColor: 'rgba(59,130,246,0.2)',
-                            tension: 0.3,
-                            fill: true
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                labels: { color: 'white' }
-                            }
+        
+                // DASHBOARD CHART
+                const dash = document.getElementById('tempChart');
+                if (dash) {
+                    const ctx = dash.getContext('2d');
+                    if (dashboardChart) dashboardChart.destroy();
+        
+                    dashboardChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.labels || [],
+                            datasets: [{
+                                data: data.temps || [],
+                                borderColor: '#3b82f6',
+                                backgroundColor: 'rgba(59,130,246,0.2)',
+                                tension: 0.3,
+                                fill: true
+                            }]
                         },
-                        scales: {
-                            x: {
-                                ticks: { color: 'white' },
-                                grid: { color: 'rgba(255,255,255,0.08)' }
-                            },
-                            y: {
-                                ticks: { color: 'white' },
-                                grid: { color: 'rgba(255,255,255,0.08)' }
+                        options: { plugins: { legend: { display: false } } }
+                    });
+                }
+        
+                // ANALYTICS CHART (THIS IS THE IMPORTANT ONE)
+                const analytics = document.getElementById('analyticsTempChart');
+                if (analytics) {
+                    const ctx = analytics.getContext('2d');
+                    if (analyticsChart) analyticsChart.destroy();
+        
+                    analyticsChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: data.labels || [],
+                            datasets: [{
+                                data: data.temps || [],
+                                borderColor: '#a855f7',
+                                backgroundColor: 'rgba(168,85,247,0.15)',
+                                pointRadius: 4,
+                                tension: 0.4,
+                                fill: true
+                            }]
+                        },
+                        options: {
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: {
+                                    ticks: { color: '#94a3b8' },
+                                    grid: { color: 'rgba(255,255,255,0.05)' }
+                                },
+                                y: {
+                                    ticks: { color: '#94a3b8' },
+                                    grid: { color: 'rgba(255,255,255,0.05)' }
+                                }
                             }
                         }
-                    }
-                });
+                    });
+                }
+        
             } catch (err) {
-                console.error("loadChart failed:", err);
+                console.error(err);
             }
         }
-
         async function loadData() {
             try {
                 const res = await fetch('/api/events');
@@ -678,13 +691,12 @@
         function loadAlertsChart(data) {
             const canvas = document.getElementById('alertsChart');
             if (!canvas) return;
-
+        
             const ctx = canvas.getContext('2d');
-
             if (alertsChart) alertsChart.destroy();
-
+        
             alertsChart = new Chart(ctx, {
-                type: 'doughnut', // 🔥 
+                type: 'doughnut',
                 data: {
                     labels: ['Normal', 'Warning', 'Critical'],
                     datasets: [{
@@ -693,26 +705,38 @@
                             data.warning_count ?? 0,
                             data.critical_count ?? 0
                         ],
-                        backgroundColor: [
-                            '#22c55e',
-                            '#f59e0b',
-                            '#ef4444'
-                        ],
-                        borderWidth: 0
+                        backgroundColor: ['#22c55e','#f59e0b','#ef4444'],
+                        borderWidth: 0,
+                        spacing: 6,
+                        hoverOffset: 12
                     }]
                 },
                 options: {
-                    responsive: true,
-                    cutout: '65%', 
+                    cutout: '75%',
                     plugins: {
                         legend: {
-                            labels: {
-                                color: 'white',
-                                padding: 15
-                            }
+                            position: 'right',
+                            labels: { color: 'white', padding: 15 }
                         }
                     }
-                }
+                },
+                plugins: [{
+                    id: 'centerText',
+                    beforeDraw(chart) {
+                        const { width, height, ctx } = chart;
+                        ctx.restore();
+        
+                        const total = chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+        
+                        ctx.font = "bold 20px Arial";
+                        ctx.fillStyle = "white";
+                        ctx.textAlign = "center";
+                        ctx.fillText("Total", width/2, height/2 - 10);
+                        ctx.fillText(total, width/2, height/2 + 15);
+        
+                        ctx.save();
+                    }
+                }]
             });
         }
 
