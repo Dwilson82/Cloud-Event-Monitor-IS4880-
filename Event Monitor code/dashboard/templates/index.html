@@ -784,10 +784,9 @@
         
             const ctx = canvas.getContext('2d');
         
-            // ✅ destroy correct chart
             if (alertsChart) alertsChart.destroy();
         
-            // ✅ use REAL events (this is the key fix)
+           
             const temps = allEvents.map(e => e.temp).filter(Boolean);
         
             const normal = temps.filter(t => t < 27).length;
