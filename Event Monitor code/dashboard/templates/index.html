@@ -74,13 +74,17 @@
         }
 
         .card {
-            background: rgba(30,41,59,0.6);
+            background: linear-gradient(
+                145deg,
+                rgba(30,41,59,0.7),
+                rgba(15,23,42,0.9)
+            );
             backdrop-filter: blur(18px);
             border-radius: 20px;
             padding: 20px;
             border: 1px solid rgba(255,255,255,0.05);
 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             transition: all 0.25s ease
                 }
 
@@ -88,9 +92,14 @@
         .full { grid-column: span 3; }
 
         .big {
-            font-size: 26px;
-            font-weight: bold;
+            font-size: 36px;
+            font-weight: 700;
             margin-top: 10px;
+        }
+        .card h3 {
+            font-size: 14px;
+            color: #94a3b8;
+            margin-bottom: 5px;
         }
 
         h1 {
@@ -219,13 +228,16 @@
         }
         .charts-row {
             display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 24px;
-            margin-top: 25px;
+            grid-template-columns: 2.2fr 1fr;
+            gap: 30px;
+            margin-top: 3opx;
         }
 
         .card:hover {
             transform: translateY(-6px);
+            box-shadow:
+                0 20px 40px rgba(0,0,0,0.7),
+                0 0 20px rgba(59,130,246,0.15);
         }
 
         .large-chart canvas {
@@ -235,11 +247,43 @@
         .small-chart canvas {
             height: 300px !important;
         }
+        #analytics h2 {
+            margin-bottom: 5px;
+        }
+
+        #analytics p {
+            margin-bottom: 20px;
+        }
 
         @keyframes pulse {
             0% { box-shadow: 0 0 10px #ef4444; }
             50% { box-shadow: 0 0 25px #ef4444; }
             100% { box-shadow: 0 0 10px #ef4444; }
+            
+        }
+        .charts-row {
+            display: grid;
+            grid-template-columns: 2.2fr 1fr;
+            gap: 30px;
+            margin-top: 30px;
+        }
+        
+        .large-chart {
+            padding: 20px;
+        }
+        
+        .small-chart {
+            padding: 20px;
+        }
+        
+        .card h3 {
+            font-size: 14px;
+            color: #94a3b8;
+        }
+        
+        .big {
+            font-size: 36px;
+            font-weight: 700;
         }
     </style>
 </head>
@@ -382,21 +426,35 @@
                     <div class="big" id="lastTime">--</div>
                 </div>
             </div>
-
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:30px;">
+                <h3 style="margin:0;">System Trends</h3>
+                <span class="muted">Live data</span>
+            </div>
     
             <div class="charts-row">
                 <div class="card large-chart">
-                    <h3>Temperature Trend</h3>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <h3 style="margin:0;">Temperature Trend</h3>
+                            <p class="muted">Live temperature over time</p>
+                        </div>
+
+                        <select>
+                            <option>Last 30 minutes</option>
+                        </select>
+                    </div>
                     <canvas id="analyticsTempChart"></canvas>
+    
                 </div>
 
                 <div class="card small-chart">
                     <h3>Event Distribution</h3>
+                    <p class="muted">Breakdown of events by severity</p>
+
                     <canvas id="alertsChart"></canvas>
                 </div>
-            </div>
 
-        </div>
+            </div>
 
 
         <div id="settings" class="section">
@@ -555,7 +613,7 @@
                 const data = await res.json();
                 if (data.error) return;
         
-                // DASHBOARD CHART
+                // DASHBOARD
                 const dash = document.getElementById('tempChart');
                 if (dash) {
                     const ctx = dash.getContext('2d');
@@ -564,9 +622,9 @@
                     dashboardChart = new Chart(ctx, {
                         type: 'line',
                         data: {
-                            labels: data.labels || [],
+                            labels: data.labels,
                             datasets: [{
-                                data: data.temps || [],
+                                data: data.temps,
                                 borderColor: '#3b82f6',
                                 backgroundColor: 'rgba(59,130,246,0.2)',
                                 tension: 0.3,
@@ -577,7 +635,7 @@
                     });
                 }
         
-                // ANALYTICS CHART (THIS IS THE IMPORTANT ONE)
+                // ANALYTICS
                 const analytics = document.getElementById('analyticsTempChart');
                 if (analytics) {
                     const ctx = analytics.getContext('2d');
@@ -586,9 +644,9 @@
                     analyticsChart = new Chart(ctx, {
                         type: 'line',
                         data: {
-                            labels: data.labels || [],
+                            labels: data.labels,
                             datasets: [{
-                                data: data.temps || [],
+                                data: data.temps,
                                 borderColor: '#a855f7',
                                 backgroundColor: 'rgba(168,85,247,0.15)',
                                 pointRadius: 4,
@@ -599,14 +657,8 @@
                         options: {
                             plugins: { legend: { display: false } },
                             scales: {
-                                x: {
-                                    ticks: { color: '#94a3b8' },
-                                    grid: { color: 'rgba(255,255,255,0.05)' }
-                                },
-                                y: {
-                                    ticks: { color: '#94a3b8' },
-                                    grid: { color: 'rgba(255,255,255,0.05)' }
-                                }
+                                x: { ticks: { color: '#94a3b8' } },
+                                y: { ticks: { color: '#94a3b8' } }
                             }
                         }
                     });
@@ -701,93 +753,47 @@
                     labels: ['Normal', 'Warning', 'Critical'],
                     datasets: [{
                         data: [
-                            Math.max((data.total ?? 0) - (data.warning_count ?? 0) - (data.critical_count ?? 0), 0),
-                            data.warning_count ?? 0,
-                            data.critical_count ?? 0
+                            Math.max(data.total - data.warning_count - data.critical_count, 0),
+                            data.warning_count,
+                            data.critical_count
                         ],
                         backgroundColor: ['#22c55e','#f59e0b','#ef4444'],
-                        borderWidth: 0,
                         spacing: 6,
-                        hoverOffset: 12
+                        borderWidth: 0
                     }]
                 },
-               options: {
+                options: {
                     cutout: '75%',
                     plugins: {
                         legend: {
                             position: 'right',
-                            labels: {
-                                color: 'white',
-                                padding: 15,
-                                generateLabels(chart) {
-                                    const data = chart.data.datasets[0].data;
-                                    const total = data.reduce((a, b) => a + b, 0);
-                
-                                    return chart.data.labels.map((label, i) => {
-                                        const value = data[i];
-                                        const percent = total ? ((value / total) * 100).toFixed(1) : 0;
-                
-                                        return {
-                                            text: `${label} (${percent}%)`,
-                                            fillStyle: chart.data.datasets[0].backgroundColor[i],
-                                            strokeStyle: chart.data.datasets[0].backgroundColor[i],
-                                            index: i
-                                        };
-                                    });
-                                }
-                            }
+                            labels: { color: 'white' }
                         }
                     }
                 }
-                plugins: [{
-                    id: 'centerText',
-                    beforeDraw(chart) {
-                        const { ctx, chartArea } = chart;
-                        if (!chartArea) return;
-                
-                        const centerX = (chartArea.left + chartArea.right) / 2;
-                        const centerY = (chartArea.top + chartArea.bottom) / 2;
-                
-                        const data = chart.data.datasets[0].data;
-                        const total = data.reduce((a, b) => a + b, 0);
-                
-                        ctx.save();
-                
-                        ctx.textAlign = "center";
-                        ctx.textBaseline = "middle";
-                
-                        ctx.font = "14px Arial";
-                        ctx.fillStyle = "#94a3b8";
-                        ctx.fillText("Total", centerX, centerY - 10);
-                
-                        ctx.font = "bold 22px Arial";
-                        ctx.fillStyle = "white";
-                        ctx.fillText(total, centerX, centerY + 12);
-                
-                        ctx.restore();
-                    }
-                }]
             });
         }
-
-        async function refreshAll() {
-            await loadMetrics();
-            await loadData();
-            await loadChart();
-            await loadStatus();
-            await loadSettings();
-        }
-
-        document.addEventListener("DOMContentLoaded", () => {
-            refreshAll();
-            lucide.createIcons();
-            setInterval(async () => {
-                await loadMetrics();
-                await loadData();
-                await loadChart();
-                await loadStatus();
-            }, 4000);
-        });
+        
+                async function refreshAll() {
+                    await loadMetrics();
+                    await loadData();
+                    await loadChart();
+                    await loadStatus();
+                    await loadSettings();
+                }
+        
+                document.addEventListener("DOMContentLoaded", () => {
+                    refreshAll();
+                    lucide.createIcons();
+                    setInterval(async () => {
+                        await loadMetrics();
+                        await loadData();
+                        await loadChart();
+                        await loadStatus();
+                    }, 4000);
+                });
+            }
+        
     </script>
 </body>
 </html>
