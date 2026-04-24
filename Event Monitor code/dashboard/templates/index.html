@@ -525,7 +525,7 @@
                 document.getElementById("maxTemp").innerText = (data.max_temp ?? 0) + " °C";
                 document.getElementById("outOfRangePct").innerText = (data.out_of_range_pct ?? 0) + "%";
 
-                loadAlertsChart(data);
+                
             } catch (err) {
                 console.error("loadMetrics failed:", err);
             }
@@ -675,6 +675,7 @@
                 allEvents = data;
                 render(allEvents);
                 updateAnalytics(allEvents);
+                loadAlertsChart(data);
             } catch (err) {
                 console.error("loadData failed:", err);
             }
@@ -778,7 +779,7 @@
             }
         }
 
-        function loadAlertsChart(data) {
+        function loadAlertsChart {
             const canvas = document.getElementById('alertsChart');
             if (!canvas) return;
         
