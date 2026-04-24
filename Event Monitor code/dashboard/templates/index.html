@@ -268,9 +268,10 @@
     </div>
     
     <div class="main">
-        <h1> Data Center Dashboard</h1>
-        <p class="muted">Real-Time Pub/Sub Monitoring</p>
-
+        <div id="pageHeader">
+            <h1> Data Center Dashboard</h1>
+            <p class="muted">Real-Time Pub/Sub Monitoring</p>
+        </div>
         <div id="dashboard" class="section active">
             <div class="grid">
                 <div class="card">
@@ -440,9 +441,18 @@
 
             document.getElementById(sectionId).classList.add("active");
             btn.classList.add("active");
+            const header = document.getElementById("pageHeader");
+
+    
+            if (sectionId === "analytics") {
+                header.style.display = "none";
+            } else {
+                header.style.display = "block";
+            }
         }
+        
         function goToLogs() {
-            const btn = document.querySelectorAll(".nav-btn")[1]; // logs button
+            const btn = document.querySelectorAll(".nav-btn")[1]; 
             showSection('logs', btn);
         }
 
