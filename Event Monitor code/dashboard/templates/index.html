@@ -390,7 +390,7 @@
     
             <div class="card">
                 <h3>System Status</h3>
-                <div class="big" id="systemStatus">--</div>
+                <div class="big" id="analyticsStatus">--</div>
             </div>
     
         </div>
@@ -674,7 +674,7 @@
 
                 allEvents = data;
                 render(allEvents);
-                updateAnalytics();
+                updateAnalytics(allEvents);
             } catch (err) {
                 console.error("loadData failed:", err);
             }
@@ -719,7 +719,7 @@
 
         function updateAnalytics(data) {
 
-            const temps = data.map(d => d.temp_c).filter(Boolean);
+            const temps = data.map(d => d.temp).filter(Boolean);
         
             const latest = temps[temps.length - 1] || 0;
             const prev = temps[temps.length - 2] || 0;
@@ -752,7 +752,7 @@
             if (latest > 35) status = "Critical";
             else if (latest > 27) status = "Warning";
         
-            document.getElementById("systemStatus").innerText = status;
+            document.getElementById("analyticsStatus").innerText = status;
         
             const max = Math.max(...temps);
             const min = Math.min(...temps);
