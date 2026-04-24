@@ -69,24 +69,30 @@
 
         .grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 20px;
         }
 
         .card {
             background: linear-gradient(
                 145deg,
-                rgba(30,41,59,0.7),
-                rgba(15,23,42,0.9)
+                rgba(30,41,59,0.8),
+                rgba(15,23,42,0.95)
             );
-            backdrop-filter: blur(18px);
+        
             border-radius: 20px;
             padding: 20px;
+        
             border: 1px solid rgba(255,255,255,0.05);
-
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-            transition: all 0.25s ease
-                }
+        
+            box-shadow:
+                0 10px 30px rgba(0,0,0,0.6),
+                inset 0 1px 1px rgba(255,255,255,0.05);
+        
+            backdrop-filter: blur(20px);
+        
+            transition: all 0.25s ease;
+        }
 
         .large { grid-column: span 2; }
         .full { grid-column: span 3; }
@@ -95,6 +101,7 @@
             font-size: 36px;
             font-weight: 700;
             margin-top: 10px;
+             letter-spacing: -1px;
         }
         .card h3 {
             font-size: 14px;
@@ -257,7 +264,7 @@
         }
         .charts-row {
             display: grid;
-            grid-template-columns: 2.2fr 1fr;
+            grid-template-columns: 2.5fr 1fr;
             gap: 30px;
             margin-top: 30px;
         }
@@ -276,9 +283,24 @@
         }
         
         .big {
-            font-size: 36px;
+            font-size: 40px;
             font-weight: 700;
+            margin-top: 10px;
+            letter-spacing: -1px;
         }
+        .glow {
+            text-shadow: 0 0 12px rgba(168,85,247,0.8);
+        }
+        .live-dot {
+            width: 10px;
+            height: 10px;
+            background: #22c55e;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        #dupBar {
+    transition: width 0.5s ease;
+}
     </style>
 </head>
 <body>
@@ -373,7 +395,7 @@
     
             <div class="card">
                 <h3>Latest Temperature</h3>
-                <div class="big" id="latestTemp">--</div>
+                <div class="big glow" id="latestTemp">--</div>
                 <div class="muted" id="tempChange">--</div>
             </div>
     
@@ -399,6 +421,10 @@
     
             <div class="card large-chart">
                 <h3>Temperature Over Time</h3>
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                    <div class="live-dot"></div>
+                    <span class="muted">Live</span>
+                </div>
     
                 <select id="timeRange" onchange="loadChart()">
                     <option value="30">Last 30 Minutes</option>
@@ -671,11 +697,14 @@
                 const res = await fetch('/api/events');
                 const data = await res.json();
                 if (data.error) return;
-
+        
                 allEvents = data;
+        
                 render(allEvents);
                 updateAnalytics(allEvents);
-                loadAlertsChart(data);
+        
+                loadAlertsChart();
+        
             } catch (err) {
                 console.error("loadData failed:", err);
             }
@@ -779,7 +808,7 @@
             }
         }
 
-        function loadAlertsChart {
+        function loadAlertsChart() {
             const canvas = document.getElementById('alertsChart');
             if (!canvas) return;
         
@@ -808,7 +837,7 @@
                     }]
                 },
                 options: {
-                    cutout: '75%',
+                    cutout: '65%',
                     plugins: {
                         legend: {
                             position: 'right',
