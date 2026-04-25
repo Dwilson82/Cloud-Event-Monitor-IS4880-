@@ -430,7 +430,7 @@
 
                 <div class="card small-chart">
                     <div style="width:100%;">
-                        <h3 style="margin-bottom:10px;">Alerts Distribution</h3>
+                        <h3 style="text-align:center; margin-bottom:10px;">Alerts Distribution</h3>
                     </div>
                 
                     <canvas id="alertsChart"></canvas>
@@ -778,6 +778,10 @@
                             position: 'bottom',
                             labels: {
                                 color: 'white',
+                                font: {
+                                    size: 14,
+                                    weight: '500'
+                                },
                                 boxWidth: 12,
                                 padding: 12,
                                 generateLabels(chart) {
@@ -813,11 +817,11 @@
         
                         ctx.font = "14px Arial";
                         ctx.fillStyle = "#94a3b8";
-                        ctx.fillText("Total", centerX, centerY - 10);
+                        ctx.fillText("Total", centerX, centerY - 14);
         
-                        ctx.font = "bold 22px Arial";
+                        ctx.font = "bold 30px Arial";
                         ctx.fillStyle = "white";
-                        ctx.fillText(total, centerX, centerY + 12);
+                        ctx.fillText(total, centerX, centerY + 14);
         
                         ctx.restore();
                     }
