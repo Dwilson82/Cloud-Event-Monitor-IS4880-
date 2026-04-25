@@ -792,9 +792,14 @@
         
             const max = Math.max(...temps);
             const min = Math.min(...temps);
-        
-            document.getElementById("summary").innerHTML =
-                `Max: ${max.toFixed(1)}°C<br>Min: ${min.toFixed(1)}°C`;
+            const avg = temps.reduce((a,b)=>a+b,0)/temps.length;
+
+            document.getElementById("summary").innerHTML = `
+            Max: ${max.toFixed(1)}°C<br>
+            Min: ${min.toFixed(1)}°C<br>
+            Avg: ${avg.toFixed(1)}°C<br>
+            Events: ${temps.length}
+            `;
         
             const last = data[data.length - 1];
         
