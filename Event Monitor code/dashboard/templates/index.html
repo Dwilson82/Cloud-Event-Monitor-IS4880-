@@ -474,8 +474,8 @@
             <div class="card">
                 <h3>Thresholds</h3>
                 <div>🟢 Normal: 18–27°C</div>
-                <div>🟡 Warning: 27–35°C</div>
-                <div>🔴 Critical: >35°C</div>
+                <div>🟡 Warning: 27–29°C</div>
+                <div>🔴 Critical: >30°C</div>
             </div>
     
         </div>
@@ -825,14 +825,15 @@
             const temps = allEvents
                 .map(e => Number(e.temp))
                 .filter(t => !isNaN(t));
+        const warn = parseFloat(document.getElementById("warnTemp")?.value) || 27.5;
+        const crit = parseFloat(document.getElementById("critTemp")?.value) || 30;
         
-            // ✅ MATCH YOUR ACTUAL SYSTEM (IMPORTANT)
-            const normal = temps.filter(t => t < 32).length;
-            const warning = temps.filter(t => t >= 32 && t < 35).length;
-            const critical = temps.filter(t => t >= 35).length;
-        
+        const normal = temps.filter(t => t < warn).length;
+        const warning = temps.filter(t => t >= warn && t < crit).length;
+        const critical = temps.filter(t => t >= crit).length;
+                
             const values = [normal, warning, critical];
-            const total = values.reduce((a, b) => a + b, 0);
+            const total = temps.length;
         
             alertsChart = new Chart(ctx, {
                 type: 'doughnut',
@@ -884,11 +885,13 @@
         }
         
                 async function refreshAll() {
-                    await loadMetrics();
+                    await loadSettings();
                     await loadData();
+                    await loadMetrics();
                     await loadChart();
                     await loadStatus();
-                    await loadSettings();
+                    
+                    loadAlerrtsChart();
                 }
         
                 document.addEventListener("DOMContentLoaded", () => {
