@@ -264,7 +264,7 @@
         }
         .charts-row {
             display: grid;
-            grid-template-columns: 2fr 1fr;
+            grid-template-columns: 1.6fr 1fr;
             gap: 20px;
             margin-top: 20px;
         }
@@ -276,7 +276,7 @@
         .small-chart {
             padding: 20px;
             display: flex;
-            align-items: center;
+            align-items: column;
             justify-content: center;
         }
 
@@ -454,8 +454,10 @@
                 </div>
 
                 <div class="card small-chart">
-                    <h3>Event Distribution</h3>
-
+                    <div style="width:100%;">
+                        <h3 style="margin-bottom:10px;">Alerts Distribution</h3>
+                    </div>
+                
                     <canvas id="alertsChart"></canvas>
                 </div>
 
